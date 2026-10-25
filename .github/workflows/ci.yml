@@ -1,0 +1,75 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:                       # job 名即任务 3 中要选择的必需检查名称
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      # TODO 1：用 actions/setup-go 安装 Go，go-version 写 1.26.9
+      - name: setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.9"          # 固定到补丁号
+          
+      # TODO 2：添加一个 step，打印 github.event_name、github.ref、github.sha
+      #         和 github.event.pull_request.head.sha（问题 2 需要）。
+      #         放在测试之前，以便测试失败时也能看到
+      - name: show context                # 放在测试之前，失败时也能看到
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          echo "event_name  = $EVENT_NAME"
+          echo "ref         = $REF"
+          echo "sha         = $SHA"
+          echo "pr_head_sha = $PR_HEAD_SHA"
+
+      # TODO 3：make fmt-check、make vet、make test 各占一个 step，
+      #         失败时可以立即看出是哪一步
+      - name: fmt-check
+        run: make fmt-check
+
+      - name: vet
+        run: make vet
+
+      - name: test
+        run: make test
+
+      # TODO 4：只在 push 到 main 时执行（if: github.event_name == 'push'）：
+      #         make package，VERSION 用 0.0.0-main，BUILD_NO 用 github.run_number，
+      #         RUN_ID 用 github.run_id，COMMIT 用 github.sha；
+      #         再用 sha256sum 打印二进制文件和 tar.gz 的校验和；
+      #         最后用 actions/upload-artifact 上传 dist/*.tar.gz 和 dist/*.tar.gz.sha256，
+      #         artifact 名称中包含提交号和构建号，retention-days 设为 14
+      - name: package                     # 主干制品只在 push 到 main 时产出
+        if: github.event_name == 'push'
+        env:
+          VERSION: "0.0.0-main"
+          BUILD_NO: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          make package VERSION="$VERSION" BUILD_NO="$BUILD_NO" RUN_ID="$RUN_ID" COMMIT="$COMMIT"
+          sha256sum dist/*.tar.gz dist/enroll-conflict_*/enroll-conflict
+
+      - name: upload artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: enroll-conflict-main-${{ github.sha }}-${{ github.run_number }}
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+          retention-days: 14
+          if-no-files-found: error
