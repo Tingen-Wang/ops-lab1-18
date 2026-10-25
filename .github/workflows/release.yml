@@ -1,0 +1,69 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+      # 匹配 v1.0.0 形式的 tag；这是 GitHub 的过滤语法，不是正则表达式
+
+permissions:
+  contents: write                   # 创建 Release 需要写权限；ci 保持只读
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0            # 获取完整历史，才能判断 tag 是否在 main 上
+      # TODO 1：release gate。tag 指向的提交（GITHUB_SHA）必须是 origin/main 的祖先，
+      #         否则输出错误信息并 exit 1。提示：git merge-base --is-ancestor
+      - name: release gate
+        env:
+          TAG_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          echo "tag 指向的提交: $TAG_SHA"
+          git fetch --no-tags origin main 2>/dev/null || true   # fetch-depth:0 已带 origin/main，这里只是兜底
+          if git merge-base --is-ancestor "$TAG_SHA" origin/main; then
+            echo "OK: 该提交在 origin/main 的历史上，允许发布"
+          else
+            echo "::error::$TAG_SHA 不在 origin/main 的历史上，拒绝发布"
+            exit 1
+          fi
+
+      # TODO 2：安装 Go 1.26.9，发布前再运行一遍 make fmt-check vet test
+      - name: setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.9"
+
+      - name: test
+        run: make fmt-check vet test
+
+      # TODO 3：make package，VERSION 取 tag 去掉开头的 v，BUILD_NO 用 github.run_number，
+      #         RUN_ID 用 github.run_id，COMMIT 用 GITHUB_SHA；再用 sha256sum 打印校验和
+      - name: package
+        env:
+          TAG: ${{ github.ref_name }}
+          BUILD_NO: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -eu
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION BUILD_NO=$BUILD_NO RUN_ID=$RUN_ID COMMIT=$COMMIT"
+          make package VERSION="$VERSION" BUILD_NO="$BUILD_NO" RUN_ID="$RUN_ID" COMMIT="$COMMIT"
+          sha256sum dist/*.tar.gz dist/enroll-conflict_*/enroll-conflict
+
+      # TODO 4：用 gh release create 创建 Release，附上 dist/*.tar.gz 和 dist/*.tar.gz.sha256。
+      #         runner 上已预装 gh，通过环境变量 GH_TOKEN 传入 ${{ github.token }}
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          gh release create "$TAG" \
+            dist/*.tar.gz dist/*.tar.gz.sha256 \
+            --title "$TAG" \
+            --notes "构建号 ${{ github.run_number }}，提交 ${{ github.sha }}"
