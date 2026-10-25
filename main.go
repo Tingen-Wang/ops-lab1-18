@@ -53,12 +53,12 @@ func newMux() *http.ServeMux {
 			return
 		}
 		if !req.A.Valid() {
-    		http.Error(w, "a 的时段不合法", http.StatusBadRequest)
-    		return
+			http.Error(w, "a 的时段不合法", http.StatusBadRequest)
+			return
 		}
 		if !req.B.Valid() {
-    		http.Error(w, "b 的时段不合法", http.StatusBadRequest)
-    		return
+			http.Error(w, "b 的时段不合法", http.StatusBadRequest)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]bool{"conflict": Conflicts(req.A, req.B)})
