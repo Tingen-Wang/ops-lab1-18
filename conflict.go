@@ -39,6 +39,9 @@ func weeksOverlap(a, b Weeks) bool {
 	if a == AllWeeks || b == AllWeeks {
 		return true
 	}
+	if a == EvenWeeks || b == EvenWeeks {
+		return false
+	}
 	return a == b
 }
 
