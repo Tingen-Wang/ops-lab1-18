@@ -42,4 +42,9 @@ dist/enroll-conflict_1.0.0_linux_amd64/enroll-conflict -version
 | `Dockerfile` | 选做 O1 使用 |
 | `LAB1.md` | 小组的证据与分析记录，需要填写并提交 |
 
-仓库中没有 `.github/workflows/`：流水线由小组在实验中自行编写。
+`.github/workflows/` 下的两个工作流由本组在实验中编写，不在模板中：
+
+| 工作流 | 触发 | 作用 |
+|---|---|---|
+| `ci.yml` | PR 与 push 到 main | `fmt-check`、`vet`、`test`；push 到 main 时另加 `package` 与上传制品（保留 14 天） |
+| `release.yml` | push `vX.Y.Z` tag | release gate（tag 必须在 main 上）→ 测试 → 打包 → `gh release create`（附 `.sha256`） |
