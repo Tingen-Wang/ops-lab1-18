@@ -52,8 +52,12 @@ func newMux() *http.ServeMux {
 			http.Error(w, "请求体不是合法的 JSON", http.StatusBadRequest)
 			return
 		}
-		if !req.A.Valid() || !req.B.Valid() {
-			http.Error(w, "时段不合法", http.StatusBadRequest)
+		if !req.A.Valid() {
+			http.Error(w, "a 的时段不合法", http.StatusBadRequest)
+			return
+		}
+		if !req.B.Valid() {
+			http.Error(w, "b 的时段不合法", http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
